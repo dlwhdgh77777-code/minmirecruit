@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>채용 관리 프리미엄 대시보드</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <!-- 사이드바 -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>HR Dashboard</h2>
+            </div>
+            <nav id="sidebar-nav">
+                <ul>
+                    <li class="nav-item active" data-target="dash-view"><a href="#">전체 현황</a></li>
+                    <li class="nav-item" data-target="pos-view"><a href="#">포지션별 관리</a></li>
+                    <li class="nav-item" data-target="anal-view"><a href="#">지원자 분석</a></li>
+                    <li class="nav-item" data-target="sett-view"><a href="#">설정</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="main-content">
+            <!-- 1. 대시보드 뷰 -->
+            <div id="dash-view" class="view-section active">
+                <section class="filter-bar">
+                    <div class="filter-group">
+                        <label>기간 설정</label>
+                        <div class="date-inputs">
+                            <input type="date" id="start-date" class="filter-input">
+                            <span>~</span>
+                            <input type="date" id="end-date" class="filter-input">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>포지션 검색</label>
+                        <input type="text" id="pos-search" class="filter-input" placeholder="포지션명을 입력하세요...">
+                    </div>
+                    <button id="reset-filter" class="btn-reset">초기화</button>
+                </section>
+
+                <section class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                    <div class="stat-card">
+                        <h3>전체 지원 (Total)</h3>
+                        <div class="value" id="total-applicants">0</div>
+                        <div class="trend" id="total-trend">모수 데이터</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="color: #ef4444;">허수 지원 (Ghost)</h3>
+                        <div class="value" id="ghost-applicants">0</div>
+                        <p style="font-size: 0.8rem; color: #ef4444; margin-top: 4px;" id="ghost-rate">허수율 0%</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="color: #4f46e5;">유효 지원 (Valid)</h3>
+                        <div class="value" id="valid-applicants">0</div>
+                        <p style="font-size: 0.8rem; color: #4b5563; margin-top: 4px;" id="valid-rate">유효율 0%</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>면접전형 인원</h3>
+                        <div class="value" id="interviewing">0</div>
+                        <div class="trend" id="interview-rate" style="color: #4f46e5;">전환율 0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>최종 합격</h3>
+                        <div class="value" id="hired">0</div>
+                        <div class="trend" id="hired-rate" style="color: #10b981; font-weight: 700;">합격률 0%</div>
+                    </div>
+                </section>
+
+                <section class="charts-section">
+                    <div class="chart-container">
+                        <h3>전형 단계별 깔대기 (Funnel)</h3>
+                        <canvas id="funnelChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>지원자 경력 분포</h3>
+                        <canvas id="experienceChart"></canvas>
+                    </div>
+                </section>
+
+                <section class="table-section">
+                    <h3>최근 업데이트 포지션</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>포지션명</th>
+                                <th>상태</th>
+                                <th>지원수</th>
+                                <th>허수</th>
+                                <th>면접수</th>
+                                <th>합격수</th>
+                            </tr>
+                        </thead>
+                        <tbody id="position-table-body"></tbody>
+                    </table>
+                </section>
+            </div>
+
+            <!-- 2. 포지션별 관리 뷰 -->
+            <div id="pos-view" class="view-section">
+                <header>
+                    <h1>포지션별 상세 관리</h1>
+                    <p>등록된 모든 채용 공고를 관리합니다.</p>
+                </header>
+                <div class="empty-state">
+                    <h3>🛠️ 준비 중인 화면입니다</h3>
+                    <p>포지션별 상세 편집 및 공고 관리 기능이 곧 추가될 예정입니다.</p>
+                </div>
+            </div>
+
+            <!-- 3. 지원자 분석 뷰 -->
+            <div id="anal-view" class="view-section">
+                <header>
+                    <h1>지원자 정밀 분석</h1>
+                    <p>지원 경로, 학력, 연봉 등 상세 데이터를 분석합니다.</p>
+                </header>
+                <div class="empty-state">
+                    <h3>📊 데이터 분석 중...</h3>
+                    <p>더 상세한 인사이트를 위해 데이터를 집계하는 중입니다.</p>
+                </div>
+            </div>
+
+            <!-- 4. 설정 뷰 -->
+            <div id="sett-view" class="view-section">
+                <header>
+                    <h1>시스템 설정</h1>
+                    <p>사용자 정보 및 구글 시트 연동 설정을 관리합니다.</p>
+                </header>
+                <div class="empty-state">
+                    <h3>⚙️ 설정 구성 중</h3>
+                    <p>사용자 지정 설정 기능이 준비 중입니다.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
