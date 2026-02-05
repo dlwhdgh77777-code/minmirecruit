@@ -14,7 +14,9 @@ let filteredData = {
     applicants: [],
     summary: { total: 0, ghost: 0, valid: 0, interview: 0, hired: 0 },
     funnel: { labels: ['전체 지원', '유효 지원', '면접전형', '합격'], values: [0, 0, 0, 0] },
-    experience: { labels: ['신입', '3-11개월', '1-3년', '3-5년', '5년 이상'], values: [0, 0, 0, 0, 0] }
+    experience: { labels: ['신입', '3-11개월', '1-3년', '3-5년', '5년 이상'], values: [0, 0, 0, 0, 0] },
+    sources: { labels: [], values: [] },
+    ageGroups: { labels: ['20대 이하', '30대', '40대', '50대 이상'], values: [0, 0, 0, 0] }
 };
 
 // 2. 초기화 함수
@@ -151,12 +153,14 @@ function parseApplicants(rows) {
         }
 
         applicants.push({
-            name: col[1].trim(),
-            department: col[2] ? col[2].trim() : '',
-            position: col[3] ? col[3].trim() : '',
+            name: col[1] ? col[1].trim() : '',
+            age: col[2] ? col[2].trim() : '',
+            department: col[3] ? col[3].trim() : '',
+            position: col[4] ? col[4].trim() : '',
             date: dateVal,
-            experience: col[5] ? col[5].trim() : '0',
-            status: col[6] ? col[6].trim() : '서류검토'
+            experience: col[6] ? col[6].trim() : '0',
+            status: col[7] ? col[7].trim() : '지원',
+            source: col[8] ? col[8].trim() : '기타'
         });
     });
     rawData.applicants = applicants;
@@ -174,12 +178,33 @@ function parseKoreanDate(dateStr) {
     return isNaN(d.getTime()) ? null : d;
 }
 
+function parseAge(ageStr) {
+    if (!ageStr) return null;
+    const numeric = parseInt(ageStr.replace(/[^0-9]/g, ''));
+    return isNaN(numeric) ? null : numeric;
+}
+
 function parseExpToMonths(str) {
-    if (!str) return 0;
-    const s = str.trim();
-    if (s.includes('년')) return (parseFloat(s) || 0) * 12;
-    if (s.includes('개월')) return parseFloat(s) || 0;
-    return parseFloat(s) || 0;
+    if (!str || str === '0' || str.trim() === '') return 0;
+    const s = str.trim().toUpperCase();
+    let totalMonths = 0;
+
+    // 1. "N년 M개월" 또는 "NY MM" 또는 "N년" 또는 "M개월" 등 처리
+    const yearMatch = s.match(/(\d+)\s*(년|Y)/);
+    const monthMatch = s.match(/(\d+)\s*(개월|M)/);
+
+    if (yearMatch) totalMonths += parseInt(yearMatch[1]) * 12;
+    if (monthMatch) totalMonths += parseInt(monthMatch[1]);
+
+    // 2. 만약 기재된 형식이 숫자만 있다면? (기본적으로 년으로 간주)
+    if (!yearMatch && !monthMatch) {
+        const numeric = parseInt(s.replace(/[^0-9]/g, ''));
+        if (!isNaN(numeric) && numeric > 0) {
+            totalMonths = numeric * 12;
+        }
+    }
+
+    return totalMonths;
 }
 
 // 4. 필터 로직
@@ -221,31 +246,31 @@ function updateFilteredData() {
 function calculateStats() {
     const apps = filteredData.applicants || [];
 
-    // 포지션별 최소 경력 매핑 (개월 수로 변환)
+    // 1. 포지션별 최소 경력 매핑 (정규화된 이름 사용)
     const posMinExpMap = {};
     rawData.positions.forEach(p => {
-        posMinExpMap[p.name] = parseExpToMonths(p.minExp);
+        const normalizedName = (p.name || '').trim().toLowerCase();
+        posMinExpMap[normalizedName] = parseExpToMonths(p.minExp);
     });
 
     const isGhost = (app) => {
-        // 1. 상태값에 '허수'가 포함된 경우
         if (app.status && app.status.includes('허수')) return true;
-        // 2. 포지션 최소 경력보다 부족한 경우 (자동 판별)
-        const minMonths = posMinExpMap[app.position] || 0;
+        const appPos = (app.position || '').trim().toLowerCase();
+        const minMonths = posMinExpMap[appPos] || 0;
         const appMonths = parseExpToMonths(app.experience);
         return appMonths < minMonths;
     };
 
     const hasStatus = (app, keyword) => app.status && app.status.toLowerCase().includes(keyword.toLowerCase());
 
-    // 요약 지표 (사용자 요청: 효율 중심 개편)
+    // 2. 요약 지표 계산
     filteredData.summary.total = apps.length;
     filteredData.summary.ghost = apps.filter(a => isGhost(a)).length;
     filteredData.summary.valid = apps.filter(a => !isGhost(a)).length;
     filteredData.summary.interview = apps.filter(a => !isGhost(a) && (hasStatus(a, '면접') || hasStatus(a, '합격'))).length;
     filteredData.summary.hired = apps.filter(a => !isGhost(a) && hasStatus(a, '합격')).length;
 
-    // 깔대기 차트 (전체 -> 유효 -> 면접 -> 합격)
+    // 3. 깔대기 차트 (전체 -> 유효 -> 면접 -> 합격)
     filteredData.funnel.values = [
         filteredData.summary.total,
         filteredData.summary.valid,
@@ -253,26 +278,51 @@ function calculateStats() {
         filteredData.summary.hired
     ];
 
-    // 경력 통계 (신입, 3-11개월, 1-3년, 3-5년, 5년 이상)
+    // 4. 경력 통계 (신입, 3-11개월, 1-3년, 3-5년, 5년 이상)
     const expCounts = [0, 0, 0, 0, 0];
     apps.forEach(a => {
         const months = parseExpToMonths(a.experience);
         if (months === 0) expCounts[0]++; // 신입
-        else if (months < 12) expCounts[1]++; // 1-11개월 (사용자 요청 3-11개월 포함)
+        else if (months < 12) expCounts[1]++; // 1-11개월
         else if (months < 36) expCounts[2]++; // 1-3년
         else if (months < 60) expCounts[3]++; // 3-5년
         else expCounts[4]++; // 5년 이상
     });
     filteredData.experience.values = expCounts;
 
-    // 포지션 테이블 데이터
+    // 5. 지원경로 통계
+    const sourceMap = {};
+    apps.forEach(a => {
+        const src = (a.source || '기타').trim();
+        sourceMap[src] = (sourceMap[src] || 0) + 1;
+    });
+    filteredData.sources.labels = Object.keys(sourceMap);
+    filteredData.sources.values = Object.values(sourceMap);
+
+    filteredData.sources.labels = Object.keys(sourceMap);
+    filteredData.sources.values = Object.values(sourceMap);
+
+    // 6. 나이 통계
+    const ageCounts = [0, 0, 0, 0];
+    apps.forEach(a => {
+        const age = parseAge(a.age);
+        if (age === null) return;
+        if (age < 30) ageCounts[0]++;
+        else if (age < 40) ageCounts[1]++;
+        else if (age < 50) ageCounts[2]++;
+        else ageCounts[3]++;
+    });
+    filteredData.ageGroups.values = ageCounts;
+
+    // 7. 포지션 테이블 데이터
     const searchTermEl = document.getElementById('pos-search');
     const tableSearch = searchTermEl ? searchTermEl.value.toLowerCase().trim() : '';
 
     filteredData.positions = rawData.positions
         .filter(p => !tableSearch || p.name.toLowerCase().includes(tableSearch))
         .map(p => {
-            const posApps = apps.filter(a => a.position === p.name);
+            const normalizedPName = (p.name || '').trim().toLowerCase();
+            const posApps = apps.filter(a => (a.position || '').trim().toLowerCase() === normalizedPName);
             return {
                 ...p,
                 applicants: posApps.length,
@@ -287,6 +337,8 @@ function renderDashboard() {
     updateSummaryUI();
     try { renderFunnelChart(); } catch (e) { console.error('Funnel chart error:', e); }
     try { renderExperienceChart(); } catch (e) { console.error('Experience chart error:', e); }
+    try { renderSourceChart(); } catch (e) { console.error('Source chart error:', e); }
+    try { renderAgeChart(); } catch (e) { console.error('Age chart error:', e); }
     renderPositionTable();
 }
 
@@ -367,6 +419,55 @@ function setupNavigation() {
                 if (view.id === target) view.classList.add('active');
             });
         });
+    });
+}
+
+function renderAgeChart() {
+    const ctx = document.getElementById('ageChart').getContext('2d');
+    if (window.ageChartInst) window.ageChartInst.destroy();
+    window.ageChartInst = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: filteredData.ageGroups.labels,
+            datasets: [{
+                label: '인원 수',
+                data: filteredData.ageGroups.values,
+                backgroundColor: '#818cf8',
+                borderRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+}
+
+function renderSourceChart() {
+    const ctx = document.getElementById('sourceChart').getContext('2d');
+    if (window.sourceChartInst) window.sourceChartInst.destroy();
+    window.sourceChartInst = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: filteredData.sources.labels,
+            datasets: [{
+                data: filteredData.sources.values,
+                backgroundColor: ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                title: { display: false }
+            }
+        }
     });
 }
 
